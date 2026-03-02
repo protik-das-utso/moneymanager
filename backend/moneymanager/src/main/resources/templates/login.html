@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - Money Manager</title>
+    <link rel="stylesheet" th:href="@{/css/auth.css}" href="/css/auth.css" />
+</head>
+<body>
+    <div class="container">
+        <div class="welcome-section">
+            <div class="welcome-icon">💰</div>
+            <h1>Welcome Back!</h1>
+            <p>Sign in to continue managing your finances</p>
+            <ul class="features">
+                <li>Track your expenses</li>
+                <li>Manage your income</li>
+                <li>Organize by categories</li>
+                <li>Generate reports</li>
+                <li>Secure & Private</li>
+            </ul>
+        </div>
+
+        <div class="form-section">
+            <div class="form-header">
+                <h2>Sign In</h2>
+                <p>Enter your credentials to access your account</p>
+            </div>
+
+            <div class="success-message" id="successMessage"></div>
+            <div class="alert-success" id="successAlert" th:if="${param.registered}">
+                Account created successfully! Please sign in.
+            </div>
+            <div class="alert-error" id="errorAlert"></div>
+
+            <form id="signinForm">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" class="form-input" placeholder="you@example.com" required>
+                    <span class="error-message" id="emailError"></span>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" class="form-input" placeholder="Enter your password" required>
+                    <span class="error-message" id="passwordError"></span>
+                </div>
+
+                <div class="form-options">
+                    <div class="remember-me">
+                        <input type="checkbox" id="rememberMe">
+                        <label for="rememberMe">Remember me</label>
+                    </div>
+                    <a href="#" class="forgot-password">Forgot password?</a>
+                </div>
+
+                <button type="submit" class="btn-signin" id="submitBtn">
+                    Sign In
+                </button>
+
+                <div class="signup-link">
+                    Don't have an account? <a th:href="@{/register}">Sign Up</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Check if user is already logged in
+        const token = localStorage.getItem('token');
+        if (token) {
+            // User is already logged in, show message and redirect
+            const container = document.querySelector('.container');
+
+            // Hide form
+            document.querySelectorAll('.welcome-section, .form-section').forEach(el => {
+                el.style.display = 'none';
+            });
+
+            // Create and show message
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'activation-card already-logged-in';
+            messageDiv.innerHTML = `
+                <div class="icon-wrapper success">
+                    <div class="checkmark">✓</div>
+                </div>
+                <h1>Already Logged In</h1>
+                <p class="subtitle">You are already logged in to your account</p>
+                <p class="description">You will be redirected to your dashboard shortly...</p>
+
+                <button class="btn-primary" onclick="goToDashboard()" style="margin-top: 30px;">
+                    Go to Dashboard Now
+                </button>
+            `;
+
+            container.innerHTML = messageDiv.outerHTML;
+
+            // Auto-redirect after 3 seconds
+            setTimeout(() => {
+                goToDashboard();
+            }, 3000);
+
+            function goToDashboard() {
+                window.location.href = '/dashboard';
+            }
+        }
+
+        const form = document.getElementById('signinForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const emailError = document.getElementById('emailError');
+        const passwordError = document.getElementById('passwordError');
+        const errorAlert = document.getElementById('errorAlert');
+        const successMessage = document.getElementById('successMessage');
+        const successAlert = document.getElementById('successAlert');
+
+        // Get URL parameters for success messages
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('registered') === 'true') {
+            successMessage.textContent = 'Registration successful! Please check your email to activate your account.';
+            successMessage.classList.add('show');
+        }
+        if (urlParams.get('activated') === 'true') {
+            successMessage.textContent = 'Account activated successfully! You can now sign in.';
+            successMessage.classList.add('show');
+        }
+
+        // Hide success alert after 5 seconds
+        if (successAlert) {
+            setTimeout(() => {
+                successAlert.classList.remove('show');
+            }, 5000);
+        }
+
+        function validateEmail(email) {
+            const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return re.test(email);
+        }
+
+        function showError(element, message) {
+            element.textContent = message;
+            element.classList.add('show');
+        }
+
+        function hideError(element) {
+            element.textContent = '';
+            element.classList.remove('show');
+        }
+
+        emailInput.addEventListener('input', () => {
+            hideError(emailError);
+            errorAlert.classList.remove('show');
+        });
+
+        passwordInput.addEventListener('input', () => {
+            hideError(passwordError);
+            errorAlert.classList.remove('show');
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Reset errors
+            hideError(emailError);
+            hideError(passwordError);
+            errorAlert.classList.remove('show');
+            successMessage.classList.remove('show');
+
+            const email = emailInput.value.trim();
+            const password = passwordInput.value.trim();
+
+            // Validation
+            let isValid = true;
+
+            if (!email) {
+                showError(emailError, 'Email is required');
+                isValid = false;
+            } else if (!validateEmail(email)) {
+                showError(emailError, 'Please enter a valid email');
+                isValid = false;
+            }
+
+            if (!password) {
+                showError(passwordError, 'Password is required');
+                isValid = false;
+            } else if (password.length < 6) {
+                showError(passwordError, 'Password must be at least 6 characters');
+                isValid = false;
+            }
+
+            if (!isValid) return;
+
+            // Disable button and show loading
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="loader"></span>Signing in...';
+
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Store token
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                        localStorage.setItem('user', JSON.stringify(data.user || {}));
+                    }
+
+                    // Hide form and show redirecting message
+                    form.style.display = 'none';
+
+                    // Create redirecting message
+                    const redirectDiv = document.createElement('div');
+                    redirectDiv.className = 'activation-card';
+                    redirectDiv.innerHTML = `
+                        <div class="icon-wrapper success">
+                            <div class="checkmark">✓</div>
+                        </div>
+                        <h1>Sign In Successful!</h1>
+                        <p class="subtitle" style="color: #2ecc71;">Redirecting to dashboard...</p>
+                        <p class="description">Please wait while we take you to your dashboard.</p>
+                        <div class="spinner-container" style="margin-top: 20px;">
+                            <div class="loader"></div>
+                        </div>
+                    `;
+
+                    document.querySelector('.form-section').appendChild(redirectDiv);
+
+                    setTimeout(() => {
+                        window.location.href = '/dashboard';
+                    }, 2000);
+                } else {
+                    // Handle different error scenarios
+                    let errorMessage = 'Sign in failed. Please try again.';
+
+                    if (data.message) {
+                        errorMessage = data.message;
+                    } else if (data.error) {
+                        errorMessage = data.error;
+                    }
+
+                    if (response.status === 403) {
+                        errorMessage = data.message || 'Account not activated. Please check your email.';
+                    } else if (response.status === 401) {
+                        errorMessage = 'Invalid email or password';
+                    }
+
+                    errorAlert.textContent = errorMessage;
+                    errorAlert.classList.add('show');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                errorAlert.textContent = 'Network error. Please check your connection and try again.';
+                errorAlert.classList.add('show');
+            } finally {
+                // Re-enable button
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Sign In';
+            }
+        });
+    </script>
+</body>
+</html>

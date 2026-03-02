@@ -1,0 +1,159 @@
+package dev.protik.moneymanager.service;
+
+import dev.protik.moneymanager.dto.ExpenseDTO;
+import dev.protik.moneymanager.dto.IncomeDTO;
+import dev.protik.moneymanager.dto.ProfileDTO;
+import dev.protik.moneymanager.entity.CategoryEntity;
+import dev.protik.moneymanager.entity.ExpenseEntity;
+import dev.protik.moneymanager.entity.IncomeEntity;
+import dev.protik.moneymanager.entity.ProfileEntity;
+import dev.protik.moneymanager.repository.CategoryRepository;
+import dev.protik.moneymanager.repository.ExpenseRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class ExpenseService {
+    private final CategoryRepository categoryRepository;
+    private final ProfileService profileService;
+    private final ExpenseRepository expenseRepository;
+
+    // adding a expense
+    public ExpenseDTO addExpense(ExpenseDTO expenseDTO) {
+        ProfileEntity profile = profileService.getCurrentProfile();
+        CategoryEntity category = categoryRepository.findById(expenseDTO.getCategoryId())
+                .orElseThrow(() -> new RuntimeException("Category not found with id: " + expenseDTO.getCategoryId()));
+        ExpenseEntity expenseEntity = toEntiry(expenseDTO, profile, category);
+        expenseEntity = expenseRepository.save(expenseEntity);
+        return toDTO(expenseEntity);
+    }
+    // Retrieves all expenses for the current user
+    public List<ExpenseDTO> getAllExpenses(){
+        ProfileEntity profile = profileService.getCurrentProfile();
+        List<ExpenseEntity> expenses = expenseRepository.findByProfileIdOrderByAddedDateDesc(profile.getId());
+        return expenses.stream().map(this::toDTO).toList();
+    }
+
+    // delete expense by id for current user
+    public void deleteExpense(Long expenseId) {
+        ProfileEntity profile = profileService.getCurrentProfile();
+        ExpenseEntity existingExpense = expenseRepository.findById(expenseId)
+                .orElseThrow(() -> new RuntimeException("Expense not found with id: " + expenseId));
+        if (!existingExpense.getProfile().getId().equals(profile.getId())) {
+            throw new RuntimeException("Unauthorized: Expense not found or accessible");
+        }
+        expenseRepository.delete(existingExpense);
+    }
+
+    // Retrieves all expenses for the current month: based on the startDate and endDate
+    public List<ExpenseDTO> getExpensesForCurrentMonthForCurrentUser() {
+        ProfileEntity profile = profileService.getCurrentProfile();
+        LocalDate now = LocalDate.now();
+        LocalDateTime startDate = now.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime endDate   = now.withDayOfMonth(now.lengthOfMonth()).atTime(LocalTime.MAX);
+
+        List<ExpenseEntity> expenses = expenseRepository.findByProfileIdAndAddedDateBetween(profile.getId(), startDate, endDate);
+        return expenses.stream().map(this::toDTO).toList();
+    }
+
+
+    // Get latest 5 expenses for current user
+    public List<ExpenseDTO> getLatest5ExpensesForCurrentUser() {
+        ProfileEntity profile = profileService.getCurrentProfile();
+        List<ExpenseEntity> list = expenseRepository.findTop5ByProfileIdOrderByAddedDateDesc(profile.getId());
+        return list.stream().map(this::toDTO).toList();
+    }
+
+
+    // Get latest Expenses for current user (Today)
+    public List<ExpenseDTO> getTodayExpensesForCurrentUser() {
+        ProfileEntity profile = profileService.getCurrentProfile();
+        LocalDate today = LocalDate.now();
+        LocalDateTime todayStart = today.atStartOfDay();
+        LocalDateTime todayEnd = today.atTime(LocalTime.MAX);
+
+        List<ExpenseEntity> list = expenseRepository.findByProfileIdAndAddedDateBetween(profile.getId(), todayStart, todayEnd);
+        return list.stream().map(this::toDTO).toList();
+    }
+
+    // Get latest Expenses for current user (yesterday)
+    public List<ExpenseDTO> getYesterdaysExpenseForCurrentUser() {
+        ProfileEntity profile = profileService.getCurrentProfile();
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+
+        LocalDateTime yesterdayStart = yesterday.atStartOfDay();
+        LocalDateTime yesterdayEnd   = yesterday.atTime(LocalTime.MAX);
+
+        List<ExpenseEntity> list = expenseRepository.findByProfileIdAndAddedDateBetween(profile.getId(), yesterdayStart, yesterdayEnd);
+        return list.stream().map(this::toDTO).toList();
+    }
+
+    // Get latest Expenses for current user (Last 7 days)
+    public List<ExpenseDTO> getLast7DaysExpenseForCurrentUser() {
+        ProfileEntity profile = profileService.getCurrentProfile();
+        LocalDateTime today = LocalDateTime.now().toLocalDate().atStartOfDay();
+        LocalDateTime sevenThDay = LocalDateTime.now().toLocalDate().minusDays(7).atStartOfDay();
+        List<ExpenseEntity> list = expenseRepository.findByProfileIdAndAddedDateBetween(profile.getId(), today, sevenThDay);
+        return list.stream().map(this::toDTO).toList();
+    }
+
+    // Get Total Expenses of Current User
+    public BigDecimal getTotalExpenseForCurrentUser() {
+        ProfileEntity profile = profileService.getCurrentProfile();
+        BigDecimal totalExpense = expenseRepository.findTotalExpenseByProfileId(profile.getId());
+        return totalExpense != null ? totalExpense : BigDecimal.ZERO;
+    }
+
+    public List<ExpenseDTO> getTodayExpensesByProfileId(String email) {
+        ProfileDTO profile = profileService.getPublicProfile(email);
+
+        LocalDateTime todayEnd = LocalDateTime.now();
+        LocalDateTime todayStart = LocalDate.now().atStartOfDay();
+
+        List<ExpenseEntity> list = expenseRepository.findByProfileIdAndAddedDateBetween(profile.getId(), todayStart, todayEnd);
+        return list.stream().map(this::toDTO).toList();
+    }
+
+
+    // filter expenses
+    public List<ExpenseDTO> filterExpenses(LocalDateTime startDate, LocalDateTime endDate, String keyword, Sort sort) {
+        ProfileEntity profile = profileService.getCurrentProfile();
+        List<ExpenseEntity> list = expenseRepository.findByProfileIdAndAddedDateBetweenAndNoteContainingIgnoreCase(profile.getId(), startDate, endDate, keyword, sort);
+        return list.stream().map(this::toDTO).toList();
+    }
+
+    // helper method
+    private ExpenseEntity toEntiry(ExpenseDTO dto, ProfileEntity profile, CategoryEntity category) {
+        return ExpenseEntity.builder()
+                .note(dto.getNote())
+                .addedDate(dto.getAddedDate())
+                .amount(dto.getAmount())
+                .addedDate(dto.getAddedDate())
+                .category(category)
+                .profile(profile)
+                .build();
+    }
+
+    private ExpenseDTO toDTO(ExpenseEntity entity) {
+        return ExpenseDTO.builder()
+                .id(entity.getId())
+                .note(entity.getNote())
+                .addedDate(entity.getAddedDate())
+                .amount(entity.getAmount())
+                .categoryId(entity.getCategory().getId() != null ? entity.getCategory().getId() : null)
+                .categoryName(entity.getCategory().getCategoryName() != null ? entity.getCategory().getCategoryName() : null)
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
+    }
+}

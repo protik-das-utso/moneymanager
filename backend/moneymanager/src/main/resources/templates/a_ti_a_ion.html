@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Activation - Money Manager</title>
+    <link rel="stylesheet" th:href="@{/css/activation.css}" href="/css/activation.css" />
+</head>
+<body>
+    <div class="container">
+        <!-- Success State -->
+        <div class="activation-card" id="successState">
+            <div class="icon-wrapper success">
+                <div class="checkmark">✓</div>
+            </div>
+            <h1>Account Activated!</h1>
+            <p class="subtitle">Your account has been successfully activated.</p>
+            <p class="description">Welcome to Money Manager! You're all set to start managing your finances.</p>
+
+            <div class="info-box">
+                <div class="info-item">
+                    <span class="info-icon">📊</span>
+                    <div class="info-text">
+                        <strong>Track Expenses</strong>
+                        <small>Monitor your spending patterns</small>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <span class="info-icon">💰</span>
+                    <div class="info-text">
+                        <strong>Manage Income</strong>
+                        <small>Record all your income sources</small>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <span class="info-icon">📈</span>
+                    <div class="info-text">
+                        <strong>Generate Reports</strong>
+                        <small>View detailed financial reports</small>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn-primary" onclick="redirectToLogin()">Go to Sign In</button>
+            <p class="footer-text">Ready to manage your money? <a href="#" onclick="redirectToLogin()">Sign in now</a></p>
+        </div>
+
+        <!-- Loading State -->
+        <div class="activation-card hidden" id="loadingState">
+            <div class="icon-wrapper loading">
+                <div class="spinner"></div>
+            </div>
+            <h1>Activating Your Account</h1>
+            <p class="subtitle">Please wait while we activate your account...</p>
+            <p class="description">This should only take a moment.</p>
+        </div>
+
+        <!-- Error State -->
+        <div class="activation-card hidden" id="errorState">
+            <div class="icon-wrapper error">
+                <div class="error-icon">✕</div>
+            </div>
+            <h1>Activation Failed</h1>
+            <p class="subtitle" id="errorMessage">Something went wrong while activating your account.</p>
+            <p class="description">Please try again or contact our support team if the problem persists.</p>
+
+            <div class="error-details" id="errorDetails" style="display: none;">
+                <p id="errorDetails-text"></p>
+            </div>
+
+            <button class="btn-primary" onclick="retryActivation()">Try Again</button>
+            <button class="btn-secondary" onclick="goToSignup()">Go to Sign Up</button>
+            <p class="footer-text">Need help? <a href="#">Contact Support</a></p>
+        </div>
+
+        <!-- Expired State -->
+        <div class="activation-card hidden" id="expiredState">
+            <div class="icon-wrapper expired">
+                <div class="expired-icon">⏱</div>
+            </div>
+            <h1>Activation Link Expired</h1>
+            <p class="subtitle">Your activation link has expired.</p>
+            <p class="description">Activation links are valid for 24 hours. Please request a new activation link.</p>
+
+            <div class="input-group">
+                <input type="email" id="emailForResend" class="form-input" placeholder="Enter your email address" required>
+                <button class="btn-primary" onclick="resendActivationLink()">Resend Link</button>
+            </div>
+
+            <button class="btn-secondary" onclick="goToSignup()">Create New Account</button>
+            <p class="footer-text">Already have an account? <a href="#" onclick="redirectToLogin()">Sign in here</a></p>
+        </div>
+
+        <!-- Already Activated State -->
+        <div class="activation-card hidden" id="alreadyActivatedState">
+            <div class="icon-wrapper success">
+                <div class="checkmark">✓</div>
+            </div>
+            <h1>Already Activated</h1>
+            <p class="subtitle">Your account is already activated.</p>
+            <p class="description">You can now sign in and start using Money Manager.</p>
+
+            <button class="btn-primary" onclick="redirectToLogin()">Go to Sign In</button>
+            <p class="footer-text">Don't have an account? <a href="#" onclick="goToSignup()">Create one now</a></p>
+        </div>
+
+        <!-- Resend Confirmation State -->
+        <div class="activation-card hidden" id="resendConfirmState">
+            <div class="icon-wrapper success">
+                <div class="checkmark">✓</div>
+            </div>
+            <h1>Activation Link Sent!</h1>
+            <p class="subtitle">We've sent a new activation link to your email.</p>
+            <p class="description">Please check your email (including spam folder) and click the link to activate your account.</p>
+
+            <div class="timer-box">
+                <p>Link expires in: <span id="timerText">24:00:00</span></p>
+            </div>
+
+            <button class="btn-primary" onclick="redirectToLogin()">Go to Sign In</button>
+            <p class="footer-text">Didn't receive the email? <a href="#" onclick="resendActivationLink()">Send again</a></p>
+        </div>
+    </div>
+
+    <script>
+        // Get activation token from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        const email = urlParams.get('email');
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            if (token) {
+                activateAccount(token);
+            } else {
+                showError('No activation token provided.');
+            }
+        });
+
+        function activateAccount(token) {
+            showState('loadingState');
+
+            fetch('/activate?token=' + encodeURIComponent(token), {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    // Success
+                    showState('successState');
+                    // Auto-redirect after 5 seconds
+                    setTimeout(() => {
+                        redirectToLogin();
+                    }, 5000);
+                    return null;
+                } else if (response.status === 409) {
+                    // Already activated
+                    showState('alreadyActivatedState');
+                    return null;
+                } else if (response.status === 400) {
+                    // Invalid or expired token
+                    return response.json().then(data => {
+                        if (data.message && data.message.toLowerCase().includes('expired')) {
+                            showState('expiredState');
+                        } else {
+                            showError(data.message || 'Invalid activation token.');
+                        }
+                    });
+                } else {
+                    return response.json().then(data => {
+                        showError(data.message || 'Activation failed. Please try again.');
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Activation error:', error);
+                showError('Network error. Please check your connection and try again.');
+            });
+        }
+
+        function showState(stateId) {
+            // Hide all states
+            document.getElementById('successState').classList.add('hidden');
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('errorState').classList.add('hidden');
+            document.getElementById('expiredState').classList.add('hidden');
+            document.getElementById('alreadyActivatedState').classList.add('hidden');
+            document.getElementById('resendConfirmState').classList.add('hidden');
+
+            // Show selected state
+            document.getElementById(stateId).classList.remove('hidden');
+
+            // Start timer if resend confirmation state
+            if (stateId === 'resendConfirmState') {
+                startCountdown(24 * 60 * 60); // 24 hours
+            }
+        }
+
+        function showError(message) {
+            const errorState = document.getElementById('errorState');
+            document.getElementById('errorMessage').textContent = message;
+            showState('errorState');
+        }
+
+        function redirectToLogin() {
+            window.location.href = '/login?activated=true';
+        }
+
+        function goToSignup() {
+            window.location.href = '/register';
+        }
+
+        function retryActivation() {
+            const token = urlParams.get('token');
+            if (token) {
+                activateAccount(token);
+            } else {
+                showError('No activation token found. Please use the link from your email.');
+            }
+        }
+
+        function resendActivationLink() {
+            const emailInput = document.getElementById('emailForResend');
+            const emailValue = emailInput ? emailInput.value.trim() : email;
+
+            if (!emailValue) {
+                showError('Please provide an email address.');
+                return;
+            }
+
+            showState('loadingState');
+
+            fetch('/resend-activation', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email: emailValue })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    showState('resendConfirmState');
+                } else {
+                    showError(data.error || 'Failed to resend activation link.');
+                }
+            })
+            .catch(error => {
+                console.error('Resend error:', error);
+                showError('Network error. Please try again.');
+            });
+        }
+
+        function startCountdown(seconds) {
+            const timerElement = document.getElementById('timerText');
+            if (!timerElement) return;
+
+            let remaining = seconds;
+
+            const updateTimer = () => {
+                const hours = Math.floor(remaining / 3600);
+                const minutes = Math.floor((remaining % 3600) / 60);
+                const secs = remaining % 60;
+
+                timerElement.textContent =
+                    String(hours).padStart(2, '0') + ':' +
+                    String(minutes).padStart(2, '0') + ':' +
+                    String(secs).padStart(2, '0');
+
+                if (remaining > 0) {
+                    remaining--;
+                    setTimeout(updateTimer, 1000);
+                }
+            };
+
+            updateTimer();
+        }
+    </script>
+</body>
+</html>
