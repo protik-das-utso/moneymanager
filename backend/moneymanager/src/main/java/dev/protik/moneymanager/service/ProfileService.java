@@ -16,6 +16,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 import java.util.UUID;
@@ -43,75 +44,6 @@ public class ProfileService {
         log.info("Password has been securely hashed for user: {}", newProfile.getEmail()); // Avoid logging raw passwords
         newProfile.setActivationToken(UUID.randomUUID().toString());
         newProfile = profileRepository.save(newProfile);
-
-//        // sending email for account activation using google mail service
-//        String activationLink =
-//                activationURL+"/activate?token=" + newProfile.getActivationToken();
-//        String body =
-//                "<div style='background:#f4f6f8; padding:5px; font-family:Arial, Helvetica, sans-serif;'>" +
-//
-//                        "<div style='max-width:600px; margin:0 auto; background:#ffffff; padding:30px; " +
-//                        "border-radius:10px; box-shadow:0 6px 15px rgba(0,0,0,0.08);'>" +
-//
-//                        "<h2 style='color:#2c3e50; margin-top:0;'>Hello, " + newProfile.getFullName() + " 👋</h2>"
-//                        +
-//
-//                        "<p style='color:#555; font-size:15px; line-height:1.7;'>" +
-//                        "Thank you for creating an account with us! To complete your registration, " +
-//                        "please activate your account by clicking the button below." +
-//                        "</p>" +
-//
-//                        "<div style='text-align:center; margin:35px 0;'>" +
-//                        "<a href='" + activationLink + "' " +
-//                        "style='background:#27ae60; color:#ffffff; text-decoration:none; " +
-//                        "padding:14px 30px; border-radius:8px; font-size:16px; font-weight:bold; " +
-//                        "display:inline-block;'>" +
-//                        "Activate Your Account" +
-//                        "</a>" +
-//                        "</div>" +
-//
-//                        "<p style='color:#777; font-size:14px; line-height:1.6;'>" +
-//                        "If the button above does not work, copy and paste the following link into your browser:" +
-//                        "</p>" +
-//
-//                        "<p style='word-break:break-all; background:#f9f9f9; padding:12px; " +
-//                        "border-radius:6px; font-size:13px; color:#2980b9;'>" +
-//                        activationLink +
-//                        "</p>" +
-//
-//                        "<hr style='border:none; border-top:1px solid #eaeaea; margin:30px 0;'>" +
-//
-//                        "<p style='color:#555; font-size:14px; line-height:1.6;'>" +
-//                        "<strong>⏰ Important:</strong><br>" +
-//                        "This activation link is valid for a limited time. If it expires, you may need to request a new one." +
-//                        "</p>" +
-//
-//                        "<p style='color:#555; font-size:14px; line-height:1.6;'>" +
-//                        "<strong>🔒 Security Notice:</strong><br>" +
-//                        "If you did not create this account, please ignore this email. No action is required." +
-//                        "</p>" +
-//
-//                        "<p style='color:#555; font-size:14px; line-height:1.6;'>" +
-//                        "If you face any issues or have questions, feel free to reply to this email — " +
-//                        "we’re happy to help 😊" +
-//                        "</p>" +
-//
-//                        "<hr style='border:none; border-top:1px solid #eaeaea; margin:30px 0;'>" +
-//
-//                        "<p style='color:#999; font-size:12px; text-align:center;'>" +
-//                        "Best regards,<br>" +
-//                        "<strong>Protik The DEV</strong><br>" +
-//                        "Money Manager" +
-//                        "</p>" +
-//
-//                        "</div>" +
-//                        "</div>";
-//
-//        emailService.sendMail(
-//                newProfile.getEmail(),
-//                "Account Activation Request",
-//                body
-//        );
 
         return toDTO(newProfile);
 
@@ -203,5 +135,66 @@ public class ProfileService {
             log.error("Authentication failed for user {}: {}", authDTO.getEmail(), e.getMessage());
             throw new RuntimeException("Invalid email or password");
         }
+    }
+
+    // Initiate password reset: generate token and save to profile
+    public void initiatePasswordReset(String email) {
+        profileRepository.findByEmail(email).ifPresent(profile -> {
+            String token = UUID.randomUUID().toString();
+            profile.setPasswordResetToken(token);
+            profileRepository.save(profile);
+
+            // TODO: send email containing reset link (e.g., /password/reset/confirm?token=...)
+            log.info("Password reset token generated for {}: {}", email, token);
+        });
+    }
+
+    // Reset the password using token
+    @Transactional
+    public boolean resetPassword(String token, String newPassword) {
+        return profileRepository.findByPasswordResetToken(token)
+                .map(profile -> {
+                    boolean newPasswordNull = (newPassword == null || newPassword.trim().isEmpty());
+                    log.info("resetPassword called for profile id={} newPasswordNull={}", profile.getId(), newPasswordNull);
+
+                    if (newPasswordNull) {
+                        log.warn("Attempted to reset password with empty/newPassword for profile id={}", profile.getId());
+                        return false;
+                    }
+
+                    String encoded = null;
+                    try {
+                        encoded = passwordEncoder.encode(newPassword);
+                    } catch (Exception e) {
+                        log.error("Password encoding failed: {}", e.getMessage(), e);
+                        return false;
+                    }
+
+                    // Log only hash metadata (length/prefix) not the full hash for security
+                    if (encoded != null) {
+                        String prefix = encoded.length() > 6 ? encoded.substring(0, 6) : encoded;
+                        log.info("Encoded password hash length={} prefix={}", encoded.length(), prefix);
+                    } else {
+                        log.warn("Encoded password is null for profile id={}", profile.getId());
+                    }
+
+                    profile.setPassword(encoded);
+                    profile.setPasswordResetToken(null);
+
+                    // Persist password and clear token using a direct update to avoid JPA dirty-check issues
+                    int rowsUpdated = profileRepository.updatePasswordById(profile.getId(), encoded);
+                    log.info("updatePasswordById rowsUpdated={}", rowsUpdated);
+
+                    // reload to verify persisted value
+                    ProfileEntity reloadedAfterUpdate = profileRepository.findById(profile.getId()).orElse(null);
+                    if (reloadedAfterUpdate != null) {
+                        log.info("After update - stored password present={}, stored token={}",
+                                reloadedAfterUpdate.getPassword() != null, reloadedAfterUpdate.getPasswordResetToken());
+                    } else {
+                        log.warn("After update - could not reload profile id={}", profile.getId());
+                    }
+
+                    return reloadedAfterUpdate != null && reloadedAfterUpdate.getPassword() != null;
+                }).orElse(false);
     }
 }

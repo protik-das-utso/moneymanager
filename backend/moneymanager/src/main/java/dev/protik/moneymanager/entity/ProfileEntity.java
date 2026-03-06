@@ -34,6 +34,7 @@ public class ProfileEntity {
     private LocalDateTime updatedAt;
     private Boolean isActive;
     private String activationToken;
+    private String passwordResetToken;
 
     @PrePersist
     public void prePersist(){

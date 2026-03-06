@@ -42,6 +42,8 @@ public class SecurityConfig {
                         .requestMatchers("/status").permitAll()
                         .requestMatchers("/health").permitAll()
                         .requestMatchers("/css/**", "/js/**", "/images/**").permitAll()
+                        .requestMatchers("/password/reset/request").permitAll()
+                        .requestMatchers("/password/reset/confirm").permitAll()
 
                         // All other endpoints require authentication
                         .anyRequest().authenticated()
