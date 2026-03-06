@@ -1,5 +1,6 @@
 import DashboardIndex from "@/src/components/layout/dashboard/DashboardIndex";
-import Sidebar from "@/src/components/layout/sidebar/Sidebar";
+import Sidebar from
+"@/src/components/layout/sidebar/Sidebar";
 import Navbar from "@/src/components/layout/header/Navbar";
 const page = () => {
     return (
