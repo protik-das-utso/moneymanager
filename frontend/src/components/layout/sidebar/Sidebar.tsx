@@ -16,7 +16,7 @@ const Sidebar = () => {
     const pathname = usePathname();
 
     return (
-        <aside className="bg-[#1E293B] h-full flex flex-col px-4 py-6">
+        <aside className="bg-[#1E293B] h-screen flex flex-col px-4 py-6 sticky top-0 left-0 ">
             {/* Logo */}
             <div className="flex items-center gap-3 px-2 mb-8">
                 <div className="p-3 bg-[#6366F1] rounded-lg">
