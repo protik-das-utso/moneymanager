@@ -15,7 +15,7 @@ const Navbar = () => {
         return () => clearInterval(interval);
     }, []);
     return (
-        <nav className="bg-white border-b border-gray-200 py-4 px-8 flex items-center justify-between sticky top-0 z-10">
+        <nav className="bg-white border-b border-gray-200 py-4 px-8 flex items-center justify-between sticky top-0 z-20">
             {/* Left: Heading and subtext */}
             <div>
                 <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>

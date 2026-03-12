@@ -39,7 +39,7 @@ const StatCardSection = () => {
                 type="savings"
                 label="Savings Rate"
                 value="47%"
-                badge="Great!"
+                badge="Poor"
                 icon={<FontAwesomeIcon icon={faPiggyBank} className="w-6 h-6" />}
             />
         </div>

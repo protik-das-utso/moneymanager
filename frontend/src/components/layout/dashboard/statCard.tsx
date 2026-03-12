@@ -19,6 +19,12 @@ const StatCard = ({ type, label, value, percentage, badge, icon }: StatCardProps
     const getBadgeColor = () => {
         if (percentage !== undefined) {
             return percentage >= 0 ? 'text-green-500' : 'text-red-500';
+        }else if(badge){
+            if(badge.toLowerCase() === 'great'){ 
+                return 'text-green-500'
+            }else if(badge.toLowerCase() === 'poor'){
+                return 'text-red-400'
+            }
         }
         return 'text-gray-500';
     };
@@ -36,7 +42,7 @@ const StatCard = ({ type, label, value, percentage, badge, icon }: StatCardProps
                     </span>
                 )}
                 {badge && (
-                    <span className="text-sm font-medium text-gray-500">
+                    <span className={`text-sm font-medium ${getBadgeColor()}`}>
                         {badge}
                     </span>
                 )}
@@ -48,7 +54,7 @@ const StatCard = ({ type, label, value, percentage, badge, icon }: StatCardProps
                     {label}
                 </p>
                 <p className="text-3xl font-bold text-gray-900">
-                    {typeof value === 'number' ? `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : value}
+                    {typeof value === 'number' ? `৳${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : value}
                 </p>
             </div>
         </div>
